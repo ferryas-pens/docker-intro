@@ -465,7 +465,7 @@ ls -la backup/
 #### 5.1 Statistik database
 
 ```bash
-docker exec -it postgres-db psql -U labuser -d labdb << 'SQLEOF'
+docker exec -i postgres-db psql -U labuser -d labdb << 'SQLEOF'
 
 -- Ukuran database
 SELECT pg_database.datname,
