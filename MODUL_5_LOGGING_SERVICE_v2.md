@@ -155,10 +155,10 @@ cat > init/01-logging-schema.sql << 'EOF'
 CREATE SCHEMA IF NOT EXISTS logs;
 
 -- Tabel utama: format sesuai Fluent Bit pgsql plugin
+-- HANYA 3 kolom: tag, time, data — jangan tambah kolom lain
 CREATE TABLE logs.fluentbit (
-    id       BIGSERIAL PRIMARY KEY,
-    tag      VARCHAR(200),
-    time     TIMESTAMP,
+    tag      TEXT,
+    time     TIMESTAMP WITHOUT TIME ZONE,
     data     JSONB
 );
 
@@ -168,13 +168,27 @@ CREATE INDEX idx_fb_tag  ON logs.fluentbit(tag);
 CREATE INDEX idx_fb_data ON logs.fluentbit USING GIN(data);
 
 -- ==============================================
+-- FUNGSI: Safe JSON parser — mengembalikan NULL
+-- jika input bukan JSON valid (tanpa error)
+-- ==============================================
+CREATE OR REPLACE FUNCTION logs.try_parse_jsonb(input_text TEXT)
+RETURNS JSONB AS $$
+BEGIN
+    RETURN input_text::JSONB;
+EXCEPTION
+    WHEN OTHERS THEN
+        RETURN NULL;
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+
+-- ==============================================
 -- VIEWS: Parsing JSONB ke format readable
 -- ==============================================
 
 -- View: semua log dengan field diekstrak dari JSONB
 CREATE OR REPLACE VIEW logs.parsed_logs AS
 SELECT
-    id,
+    row_number() OVER (ORDER BY time DESC) AS id,
     tag,
     time AS received_at,
     -- Container info (diisi oleh Docker fluentd driver)
@@ -185,13 +199,13 @@ SELECT
     data->>'log'                              AS raw_log,
     -- Jika log berbentuk JSON, ekstrak level dan message
     CASE
-        WHEN (data->>'log')::jsonb IS NOT NULL
-        THEN (data->>'log')::jsonb->>'level'
+        WHEN logs.try_parse_jsonb(data->>'log') IS NOT NULL
+        THEN logs.try_parse_jsonb(data->>'log')->>'level'
         ELSE NULL
     END AS log_level,
     CASE
-        WHEN (data->>'log')::jsonb IS NOT NULL
-        THEN (data->>'log')::jsonb->>'message'
+        WHEN logs.try_parse_jsonb(data->>'log') IS NOT NULL
+        THEN logs.try_parse_jsonb(data->>'log')->>'message'
         ELSE data->>'log'
     END AS message
 FROM logs.fluentbit
@@ -200,7 +214,7 @@ ORDER BY time DESC;
 -- View: log terbaru (100 entry)
 CREATE OR REPLACE VIEW logs.recent_logs AS
 SELECT
-    id,
+    row_number() OVER (ORDER BY time DESC) AS id,
     to_char(time, 'YYYY-MM-DD HH24:MI:SS') AS time,
     tag,
     REPLACE(data->>'container_name', '/', '') AS container,
@@ -214,14 +228,14 @@ LIMIT 100;
 -- (untuk log-generator dan flask yang output structured JSON)
 CREATE OR REPLACE VIEW logs.structured_logs AS
 SELECT
-    id,
+    row_number() OVER (ORDER BY time DESC) AS id,
     time AS received_at,
     tag,
     REPLACE(data->>'container_name', '/', '') AS container_name,
-    (data->>'log')::jsonb->>'level'           AS log_level,
-    (data->>'log')::jsonb->>'message'         AS message,
-    (data->>'log')::jsonb->>'hostname'        AS hostname,
-    (data->>'log')::jsonb->>'service'         AS service
+    logs.try_parse_jsonb(data->>'log')->>'level'    AS log_level,
+    logs.try_parse_jsonb(data->>'log')->>'message'  AS message,
+    logs.try_parse_jsonb(data->>'log')->>'hostname' AS hostname,
+    logs.try_parse_jsonb(data->>'log')->>'service'  AS service
 FROM logs.fluentbit
 WHERE data->>'log' IS NOT NULL
   AND LEFT(TRIM(data->>'log'), 1) = '{'
@@ -231,13 +245,13 @@ ORDER BY time DESC;
 CREATE OR REPLACE VIEW logs.error_summary AS
 SELECT
     REPLACE(data->>'container_name', '/', '') AS container_name,
-    (data->>'log')::jsonb->>'level'           AS log_level,
-    COUNT(*)                                  AS count,
-    MAX(time)                                 AS last_seen
+    logs.try_parse_jsonb(data->>'log')->>'level' AS log_level,
+    COUNT(*)                                      AS count,
+    MAX(time)                                     AS last_seen
 FROM logs.fluentbit
 WHERE data->>'log' IS NOT NULL
   AND LEFT(TRIM(data->>'log'), 1) = '{'
-  AND (data->>'log')::jsonb->>'level' IN ('ERROR', 'WARN', 'CRITICAL')
+  AND logs.try_parse_jsonb(data->>'log')->>'level' IN ('ERROR', 'WARN', 'CRITICAL')
 GROUP BY 1, 2
 ORDER BY count DESC;
 
@@ -292,9 +306,9 @@ cat > fluent-bit/fluent-bit.conf << 'EOF'
     User          labuser
     Password      labpass123
     Database      labdb
-    Table         fluentbit
-    Schema        logs
-    Timestamp_Key time
+    Table             fluentbit
+    Connection_Options  -c search_path=logs
+    Timestamp_Key       date
     Async         false
     min_pool_size 1
     max_pool_size 4
@@ -518,7 +532,7 @@ def log_stats():
         # Distribusi per level (hanya dari structured JSON logs)
         cur.execute("""
             SELECT
-                (data->>'log')::jsonb->>'level' AS level,
+                logs.try_parse_jsonb(data->>'log')->>'level' AS level,
                 COUNT(*) AS count
             FROM logs.fluentbit
             WHERE time > NOW() - INTERVAL '1 hour'
@@ -592,7 +606,8 @@ def log_raw():
     try:
         conn = get_db(); cur = conn.cursor()
         cur.execute("""
-            SELECT id, time, tag,
+            SELECT row_number() OVER (ORDER BY time DESC) AS id,
+                   time, tag,
                    REPLACE(data->>'container_name', '/', '') AS container,
                    data->>'source' AS source,
                    LEFT(data->>'log', 300) AS log_content
@@ -690,7 +705,7 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: "localhost:24224"
+        fluentd-address: "127.0.0.1:24224"
         fluentd-async: "true"
         tag: "docker.nginx"
     depends_on:
@@ -713,7 +728,7 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: "localhost:24224"
+        fluentd-address: "127.0.0.1:24224"
         fluentd-async: "true"
         tag: "docker.flask"
     depends_on:
@@ -732,7 +747,7 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: "localhost:24224"
+        fluentd-address: "127.0.0.1:24224"
         fluentd-async: "true"
         tag: "docker.generator"
     depends_on:
@@ -805,7 +820,7 @@ sleep 10
 #### 6.4 Verifikasi log masuk ke PostgreSQL
 
 ```bash
-docker exec -it postgres-db psql -U labuser -d labdb << 'SQLEOF'
+docker exec -i postgres-db psql -U labuser -d labdb << 'SQLEOF'
 
 -- ============================================
 -- CEK 1: Apakah log masuk?
@@ -845,7 +860,7 @@ SQLEOF
 #### 6.5 Query analisis log
 
 ```bash
-docker exec -it postgres-db psql -U labuser -d labdb << 'SQLEOF'
+docker exec -i postgres-db psql -U labuser -d labdb << 'SQLEOF'
 
 -- Distribusi log per tag (= per container group)
 SELECT tag, COUNT(*) AS total
@@ -957,6 +972,19 @@ for i in $(seq 1 10); do curl -s http://localhost:8080 > /dev/null; done
 sleep 10
 docker exec postgres-db psql -U labuser -d labdb -c \
     "SELECT COUNT(*) FROM logs.fluentbit;"
+
+# 8. Manual test: gunakan Docker fluentd logging driver langsung
+#    (verifikasi bahwa Docker logging driver berfungsi ke Fluent Bit)
+docker run --rm \
+    --log-driver=fluentd \
+    --log-opt fluentd-address=127.0.0.1:24224 \
+    --log-opt fluentd-async=true \
+    --log-opt tag=docker.manual-test \
+    alpine:3.20 sh -c 'echo "{\"level\":\"INFO\",\"service\":\"manual-test\",\"message\":\"manual fluentd driver test\"}"'
+
+# Cek apakah log masuk
+docker exec postgres-db psql -U labuser -d labdb -c \
+    "SELECT tag, time, LEFT(data::text, 100) FROM logs.fluentbit WHERE tag = 'docker.manual-test';"
 ```
 
 ---
@@ -1004,13 +1032,16 @@ docker exec postgres-db psql -U labuser -d labdb -c \
 |---|---|---|
 | Tabel `logs.fluentbit` tidak ada | Init script tidak jalan karena volume lama masih ada | `docker compose down -v` lalu `docker compose up -d` |
 | Fluent Bit log: `relation "logs.fluentbit" does not exist` | DB belum siap saat Fluent Bit start | Pastikan `depends_on: postgres-db: condition: service_healthy` |
-| `SELECT COUNT(*)` return 0 (tabel kosong) | **Schema mismatch** — kolom tabel tidak sesuai plugin | Pastikan tabel punya kolom `tag`, `time`, `data` (bukan kolom custom) |
+| `SELECT COUNT(*)` return 0 (tabel kosong) | **Schema mismatch** — tabel punya kolom di luar `tag`, `time`, `data` (misal `id`) | Tabel HANYA boleh punya 3 kolom: `tag TEXT`, `time TIMESTAMP WITHOUT TIME ZONE`, `data JSONB` |
 | Container log producer gagal start | Fluent Bit belum listen di port 24224 | Pastikan Fluent Bit start sebelum producer, gunakan `fluentd-async: "true"` |
 | `docker compose logs nginx-web` kosong | Normal — logging driver = fluentd, bukan json-file | Log dikirim ke Fluent Bit. Cek di PostgreSQL, bukan di `docker logs` |
 | Fluent Bit `connection refused` ke PostgreSQL | PostgreSQL belum ready | Tunggu healthcheck pass, cek `docker compose ps` |
 | View `structured_logs` kosong tapi `recent_logs` ada data | Semua log adalah plain text (belum ada JSON log) | Tunggu log-generator menghasilkan JSON log (~30 detik) |
 | API `/api/logs/stats` error 500 | Schema `logs` atau view belum ada | Cek init script, recreate jika perlu: `docker compose down -v && up` |
-| Query JSONB error `invalid input syntax` | Data `log` bukan JSON valid (misal Nginx access log) | Gunakan view `structured_logs` yang sudah filter hanya JSON, atau query `recent_logs` |
+| Fluent Bit log: plugin menggunakan schema salah | `Schema logs` tidak menjamin koneksi menggunakan schema `logs` | Gunakan `Connection_Options  -c search_path=logs` sebagai ganti `Schema logs` |
+| `docker exec -it` dengan heredoc gagal | Terminal pseudo-TTY (flag `-it`) tidak kompatibel dengan heredoc | Gunakan `docker exec -i` (tanpa `t`) untuk heredoc |
+| Test stdin-to-forward berhasil tapi Docker logging tidak | Test stdin menggunakan Fluent Bit internal, bukan Docker logging driver | Tambahkan test menggunakan `docker run --log-driver=fluentd` yang benar-benar menggunakan Docker |
+| Query JSONB error `invalid input syntax` | Data `log` bukan JSON valid (misal Nginx access log) | Gunakan `logs.try_parse_jsonb(data->>'log')` yang mengembalikan NULL tanpa error |
 | Log generator terlalu banyak log | `LOG_INTERVAL` terlalu kecil | Naikkan interval di environment variable compose |
 | PostgreSQL disk penuh | Log menumpuk tanpa cleanup | Jalankan `SELECT logs.cleanup_old_logs()` |
 
