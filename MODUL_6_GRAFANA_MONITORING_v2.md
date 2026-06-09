@@ -187,7 +187,7 @@ scrape_configs:
   # --- cAdvisor (container metrics) ---
   - job_name: "cadvisor"
     static_configs:
-      - targets: ["cadvisor:8081"]
+      - targets: ["cadvisor:8080"]
         labels:
           instance: "docker-containers"
 
@@ -273,6 +273,7 @@ apiVersion: 1
 datasources:
   # --- Prometheus (metrics) ---
   - name: Prometheus
+    uid: prometheus
     type: prometheus
     access: proxy
     url: http://prometheus:9090
@@ -283,7 +284,8 @@ datasources:
 
   # --- PostgreSQL (logs dari Modul 5) ---
   - name: PostgreSQL-Logs
-    type: postgres
+    uid: postgresql-logs
+    type: grafana-postgresql-datasource
     access: proxy
     url: postgres-db:5432
     database: labdb
@@ -334,7 +336,7 @@ cat > grafana/dashboards/docker-host-overview.json << 'JSONEOF'
       "title": "CPU Usage %",
       "type": "gauge",
       "gridPos": { "h": 6, "w": 6, "x": 0, "y": 0 },
-      "datasource": { "type": "prometheus", "uid": "" },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
         "defaults": {
           "thresholds": {
@@ -358,7 +360,7 @@ cat > grafana/dashboards/docker-host-overview.json << 'JSONEOF'
       "title": "Memory Usage %",
       "type": "gauge",
       "gridPos": { "h": 6, "w": 6, "x": 6, "y": 0 },
-      "datasource": { "type": "prometheus", "uid": "" },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
         "defaults": {
           "thresholds": {
@@ -382,7 +384,7 @@ cat > grafana/dashboards/docker-host-overview.json << 'JSONEOF'
       "title": "Disk Usage %",
       "type": "gauge",
       "gridPos": { "h": 6, "w": 6, "x": 12, "y": 0 },
-      "datasource": { "type": "prometheus", "uid": "" },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
         "defaults": {
           "thresholds": {
@@ -406,7 +408,7 @@ cat > grafana/dashboards/docker-host-overview.json << 'JSONEOF'
       "title": "System Uptime",
       "type": "stat",
       "gridPos": { "h": 6, "w": 6, "x": 18, "y": 0 },
-      "datasource": { "type": "prometheus", "uid": "" },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
       "targets": [{
         "expr": "node_time_seconds - node_boot_time_seconds",
@@ -417,7 +419,7 @@ cat > grafana/dashboards/docker-host-overview.json << 'JSONEOF'
       "title": "CPU Usage Over Time",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
-      "datasource": { "type": "prometheus", "uid": "" },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100 }, "overrides": [] },
       "targets": [
         { "expr": "100 - (avg(rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)", "legendFormat": "Total CPU %" },
@@ -430,7 +432,7 @@ cat > grafana/dashboards/docker-host-overview.json << 'JSONEOF'
       "title": "Memory Breakdown",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
-      "datasource": { "type": "prometheus", "uid": "" },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": { "defaults": { "unit": "bytes" }, "overrides": [] },
       "options": { "tooltip": { "mode": "multi" } },
       "targets": [
@@ -445,7 +447,7 @@ cat > grafana/dashboards/docker-host-overview.json << 'JSONEOF'
       "title": "Network Traffic (eth0)",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
-      "datasource": { "type": "prometheus", "uid": "" },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": { "defaults": { "unit": "Bps" }, "overrides": [] },
       "targets": [
         { "expr": "rate(node_network_receive_bytes_total{device=\"eth0\"}[5m])", "legendFormat": "Received" },
@@ -456,7 +458,7 @@ cat > grafana/dashboards/docker-host-overview.json << 'JSONEOF'
       "title": "Disk I/O",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
-      "datasource": { "type": "prometheus", "uid": "" },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": { "defaults": { "unit": "Bps" }, "overrides": [] },
       "targets": [
         { "expr": "rate(node_disk_read_bytes_total[5m])", "legendFormat": "Read {{ device }}" },
@@ -486,7 +488,7 @@ cat > grafana/dashboards/container-metrics.json << 'JSONEOF'
       "title": "Running Containers",
       "type": "stat",
       "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
-      "datasource": { "type": "prometheus", "uid": "" },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [{ "color": "green", "value": null }] } }, "overrides": [] },
       "targets": [{ "expr": "count(container_last_seen{name!=\"\"})", "legendFormat": "Containers" }]
     },
@@ -494,7 +496,7 @@ cat > grafana/dashboards/container-metrics.json << 'JSONEOF'
       "title": "Total Container CPU Usage",
       "type": "stat",
       "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
-      "datasource": { "type": "prometheus", "uid": "" },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": { "defaults": { "unit": "percent", "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 80 }] } }, "overrides": [] },
       "targets": [{ "expr": "sum(rate(container_cpu_usage_seconds_total{name!=\"\"}[5m])) * 100", "legendFormat": "Total CPU" }]
     },
@@ -502,7 +504,7 @@ cat > grafana/dashboards/container-metrics.json << 'JSONEOF'
       "title": "Total Container Memory",
       "type": "stat",
       "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
-      "datasource": { "type": "prometheus", "uid": "" },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": { "defaults": { "unit": "bytes", "thresholds": { "steps": [{ "color": "green", "value": null }] } }, "overrides": [] },
       "targets": [{ "expr": "sum(container_memory_usage_bytes{name!=\"\"})", "legendFormat": "Total Memory" }]
     },
@@ -510,7 +512,7 @@ cat > grafana/dashboards/container-metrics.json << 'JSONEOF'
       "title": "Prometheus Alerts Active",
       "type": "stat",
       "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
-      "datasource": { "type": "prometheus", "uid": "" },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": { "defaults": { "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] } }, "overrides": [] },
       "targets": [{ "expr": "count(ALERTS{alertstate=\"firing\"}) OR vector(0)", "legendFormat": "Firing" }]
     },
@@ -518,7 +520,7 @@ cat > grafana/dashboards/container-metrics.json << 'JSONEOF'
       "title": "CPU Usage per Container",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
-      "datasource": { "type": "prometheus", "uid": "" },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": { "defaults": { "unit": "percent" }, "overrides": [] },
       "targets": [{ "expr": "rate(container_cpu_usage_seconds_total{name!=\"\"}[5m]) * 100", "legendFormat": "{{ name }}" }]
     },
@@ -526,7 +528,7 @@ cat > grafana/dashboards/container-metrics.json << 'JSONEOF'
       "title": "Memory Usage per Container",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
-      "datasource": { "type": "prometheus", "uid": "" },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": { "defaults": { "unit": "bytes" }, "overrides": [] },
       "targets": [{ "expr": "container_memory_usage_bytes{name!=\"\"}", "legendFormat": "{{ name }}" }]
     },
@@ -534,7 +536,7 @@ cat > grafana/dashboards/container-metrics.json << 'JSONEOF'
       "title": "Container Network RX",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
-      "datasource": { "type": "prometheus", "uid": "" },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": { "defaults": { "unit": "Bps" }, "overrides": [] },
       "targets": [{ "expr": "rate(container_network_receive_bytes_total{name!=\"\"}[5m])", "legendFormat": "{{ name }}" }]
     },
@@ -542,7 +544,7 @@ cat > grafana/dashboards/container-metrics.json << 'JSONEOF'
       "title": "Container Network TX",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
-      "datasource": { "type": "prometheus", "uid": "" },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": { "defaults": { "unit": "Bps" }, "overrides": [] },
       "targets": [{ "expr": "rate(container_network_transmit_bytes_total{name!=\"\"}[5m])", "legendFormat": "{{ name }}" }]
     }
@@ -568,7 +570,7 @@ cat > grafana/dashboards/log-analytics.json << 'JSONEOF'
       "title": "Total Logs (All Time)",
       "type": "stat",
       "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
-      "datasource": { "type": "postgres", "uid": "" },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "postgresql-logs" },
       "fieldConfig": { "defaults": { "thresholds": { "steps": [{ "color": "blue", "value": null }] } }, "overrides": [] },
       "targets": [{
         "rawSql": "SELECT COUNT(*) AS total FROM logs.fluentbit;",
@@ -579,10 +581,10 @@ cat > grafana/dashboards/log-analytics.json << 'JSONEOF'
       "title": "Errors Last Hour",
       "type": "stat",
       "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
-      "datasource": { "type": "postgres", "uid": "" },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "postgresql-logs" },
       "fieldConfig": { "defaults": { "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 10 }] } }, "overrides": [] },
       "targets": [{
-        "rawSql": "SELECT COUNT(*) AS errors FROM logs.fluentbit WHERE data->>'log' IS NOT NULL AND LEFT(TRIM(data->>'log'),1)='{' AND (data->>'log')::jsonb->>'level' IN ('ERROR','CRITICAL') AND time > NOW() - INTERVAL '1 hour';",
+        "rawSql": "SELECT COUNT(*) AS errors FROM logs.structured_logs WHERE log_level IN ('ERROR','CRITICAL') AND received_at > NOW() - INTERVAL '1 hour';",
         "format": "table"
       }]
     },
@@ -590,7 +592,7 @@ cat > grafana/dashboards/log-analytics.json << 'JSONEOF'
       "title": "Log Volume per Minute",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 24, "x": 0, "y": 4 },
-      "datasource": { "type": "postgres", "uid": "" },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "postgresql-logs" },
       "targets": [{
         "rawSql": "SELECT date_trunc('minute', time) AS time, COUNT(*) AS count FROM logs.fluentbit WHERE $__timeFilter(time) GROUP BY 1 ORDER BY 1;",
         "format": "time_series"
@@ -600,9 +602,9 @@ cat > grafana/dashboards/log-analytics.json << 'JSONEOF'
       "title": "Log Level Distribution",
       "type": "piechart",
       "gridPos": { "h": 8, "w": 8, "x": 0, "y": 12 },
-      "datasource": { "type": "postgres", "uid": "" },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "postgresql-logs" },
       "targets": [{
-        "rawSql": "SELECT (data->>'log')::jsonb->>'level' AS metric, COUNT(*) AS value FROM logs.fluentbit WHERE time > NOW() - INTERVAL '1 hour' AND data->>'log' IS NOT NULL AND LEFT(TRIM(data->>'log'),1)='{' GROUP BY metric ORDER BY value DESC;",
+        "rawSql": "SELECT log_level AS metric, COUNT(*) AS value FROM logs.structured_logs WHERE received_at > NOW() - INTERVAL '1 hour' GROUP BY log_level ORDER BY value DESC;",
         "format": "table"
       }]
     },
@@ -610,7 +612,7 @@ cat > grafana/dashboards/log-analytics.json << 'JSONEOF'
       "title": "Logs per Container",
       "type": "barchart",
       "gridPos": { "h": 8, "w": 8, "x": 8, "y": 12 },
-      "datasource": { "type": "postgres", "uid": "" },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "postgresql-logs" },
       "targets": [{
         "rawSql": "SELECT tag AS metric, COUNT(*) AS value FROM logs.fluentbit WHERE time > NOW() - INTERVAL '1 hour' GROUP BY tag ORDER BY value DESC;",
         "format": "table"
@@ -620,9 +622,9 @@ cat > grafana/dashboards/log-analytics.json << 'JSONEOF'
       "title": "Recent Errors & Critical",
       "type": "table",
       "gridPos": { "h": 8, "w": 8, "x": 16, "y": 12 },
-      "datasource": { "type": "postgres", "uid": "" },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "postgresql-logs" },
       "targets": [{
-        "rawSql": "SELECT to_char(time, 'HH24:MI:SS') AS time, REPLACE(data->>'container_name','/','') AS container, (data->>'log')::jsonb->>'level' AS level, LEFT((data->>'log')::jsonb->>'message',120) AS message FROM logs.fluentbit WHERE data->>'log' IS NOT NULL AND LEFT(TRIM(data->>'log'),1)='{' AND (data->>'log')::jsonb->>'level' IN ('ERROR','CRITICAL') ORDER BY time DESC LIMIT 20;",
+        "rawSql": "SELECT to_char(received_at, 'HH24:MI:SS') AS time, container_name, log_level, LEFT(message, 120) AS message FROM logs.structured_logs WHERE log_level IN ('ERROR','CRITICAL') ORDER BY received_at DESC LIMIT 20;",
         "format": "table"
       }]
     }
@@ -744,12 +746,10 @@ def health():
 def log_stats():
     try:
         conn = psycopg2.connect(**DB); cur = conn.cursor()
-        cur.execute("""SELECT (data->>'log')::jsonb->>'level' AS level, COUNT(*)
-                       FROM logs.fluentbit
-                       WHERE time > NOW() - INTERVAL '1 hour'
-                         AND data->>'log' IS NOT NULL
-                         AND LEFT(TRIM(data->>'log'),1) = '{'
-                       GROUP BY level ORDER BY count DESC""")
+        cur.execute("""SELECT log_level, COUNT(*)
+                       FROM logs.structured_logs
+                       WHERE received_at > NOW() - INTERVAL '1 hour'
+                       GROUP BY log_level ORDER BY count DESC""")
         stats = [{"level": r[0], "count": r[1]} for r in cur.fetchall()]
         cur.execute("SELECT COUNT(*) FROM logs.fluentbit")
         total = cur.fetchone()[0]; cur.close(); conn.close()
@@ -801,8 +801,8 @@ cat > fluent-bit/fluent-bit.conf << 'EOF'
     Password     labpass123
     Database     labdb
     Table        fluentbit
-    Schema       logs
-    Timestamp_Key time
+    Connection_Options -c search_path=logs
+    Timestamp_Key date
     Async        false
     min_pool_size 1
     max_pool_size 4
@@ -871,48 +871,127 @@ EOF
 
 # --- Init SQL (dari Modul 5 — schema sesuai Fluent Bit pgsql plugin) ---
 cat > init/01-logging-schema.sql << 'EOF'
+-- ==============================================
+-- PENTING: Fluent Bit pgsql plugin INSERT ke kolom:
+--   tag (text), time (timestamptz), data (jsonb)
+-- Jangan ubah nama kolom ini — harus persis sesuai plugin.
+-- ==============================================
+
 CREATE SCHEMA IF NOT EXISTS logs;
 
--- Tabel: format sesuai Fluent Bit pgsql plugin (tag, time, data)
-CREATE TABLE IF NOT EXISTS logs.fluentbit (
-    id       BIGSERIAL PRIMARY KEY,
-    tag      VARCHAR(200),
-    time     TIMESTAMP,
+-- Tabel utama: format sesuai Fluent Bit pgsql plugin
+-- HANYA 3 kolom: tag, time, data — jangan tambah kolom lain
+CREATE TABLE logs.fluentbit (
+    tag      TEXT,
+    time     TIMESTAMP WITHOUT TIME ZONE,
     data     JSONB
 );
 
-CREATE INDEX IF NOT EXISTS idx_fb_time ON logs.fluentbit(time);
-CREATE INDEX IF NOT EXISTS idx_fb_tag  ON logs.fluentbit(tag);
-CREATE INDEX IF NOT EXISTS idx_fb_data ON logs.fluentbit USING GIN(data);
+-- Index untuk performa query
+CREATE INDEX idx_fb_time ON logs.fluentbit(time);
+CREATE INDEX idx_fb_tag  ON logs.fluentbit(tag);
+CREATE INDEX idx_fb_data ON logs.fluentbit USING GIN(data);
 
--- View: log terbaru
-CREATE OR REPLACE VIEW logs.recent_logs AS
-SELECT id, to_char(time, 'YYYY-MM-DD HH24:MI:SS') AS time, tag,
-       REPLACE(data->>'container_name', '/', '') AS container,
-       data->>'source' AS source,
-       LEFT(data->>'log', 200) AS log_preview
-FROM logs.fluentbit ORDER BY time DESC LIMIT 100;
+-- ==============================================
+-- FUNGSI: Safe JSON parser — mengembalikan NULL
+-- jika input bukan JSON valid (tanpa error)
+-- ==============================================
+CREATE OR REPLACE FUNCTION logs.try_parse_jsonb(input_text TEXT)
+RETURNS JSONB AS $$
+BEGIN
+    RETURN input_text::JSONB;
+EXCEPTION
+    WHEN OTHERS THEN
+        RETURN NULL;
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
 
--- View: structured JSON logs (parsed level & message)
-CREATE OR REPLACE VIEW logs.structured_logs AS
-SELECT id, time AS received_at, tag,
-       REPLACE(data->>'container_name', '/', '') AS container_name,
-       (data->>'log')::jsonb->>'level' AS log_level,
-       (data->>'log')::jsonb->>'message' AS message,
-       (data->>'log')::jsonb->>'service' AS service
+-- ==============================================
+-- VIEWS: Parsing JSONB ke format readable
+-- ==============================================
+
+-- View: semua log dengan field diekstrak dari JSONB
+CREATE OR REPLACE VIEW logs.parsed_logs AS
+SELECT
+    row_number() OVER (ORDER BY time DESC) AS id,
+    tag,
+    time AS received_at,
+    -- Container info (diisi oleh Docker fluentd driver)
+    REPLACE(data->>'container_name', '/', '') AS container_name,
+    LEFT(data->>'container_id', 12)           AS container_id,
+    data->>'source'                           AS source,
+    -- Isi log (bisa plain text atau JSON)
+    data->>'log'                              AS raw_log,
+    -- Jika log berbentuk JSON, ekstrak level dan message
+    CASE
+        WHEN logs.try_parse_jsonb(data->>'log') IS NOT NULL
+        THEN logs.try_parse_jsonb(data->>'log')->>'level'
+        ELSE NULL
+    END AS log_level,
+    CASE
+        WHEN logs.try_parse_jsonb(data->>'log') IS NOT NULL
+        THEN logs.try_parse_jsonb(data->>'log')->>'message'
+        ELSE data->>'log'
+    END AS message
 FROM logs.fluentbit
-WHERE data->>'log' IS NOT NULL AND LEFT(TRIM(data->>'log'), 1) = '{'
 ORDER BY time DESC;
 
--- View: error summary
-CREATE OR REPLACE VIEW logs.error_summary AS
-SELECT REPLACE(data->>'container_name', '/', '') AS container_name,
-       (data->>'log')::jsonb->>'level' AS log_level,
-       COUNT(*) AS count, MAX(time) AS last_seen
+-- View: log terbaru (100 entry)
+CREATE OR REPLACE VIEW logs.recent_logs AS
+SELECT
+    row_number() OVER (ORDER BY time DESC) AS id,
+    to_char(time, 'YYYY-MM-DD HH24:MI:SS') AS time,
+    tag,
+    REPLACE(data->>'container_name', '/', '') AS container,
+    data->>'source' AS source,
+    LEFT(data->>'log', 200) AS log_preview
 FROM logs.fluentbit
-WHERE data->>'log' IS NOT NULL AND LEFT(TRIM(data->>'log'), 1) = '{'
-  AND (data->>'log')::jsonb->>'level' IN ('ERROR', 'WARN', 'CRITICAL')
-GROUP BY 1, 2 ORDER BY count DESC;
+ORDER BY time DESC
+LIMIT 100;
+
+-- View: log yang berisi JSON — parsed level dan message
+-- (untuk log-generator dan flask yang output structured JSON)
+CREATE OR REPLACE VIEW logs.structured_logs AS
+SELECT
+    row_number() OVER (ORDER BY time DESC) AS id,
+    time AS received_at,
+    tag,
+    REPLACE(data->>'container_name', '/', '') AS container_name,
+    logs.try_parse_jsonb(data->>'log')->>'level'    AS log_level,
+    logs.try_parse_jsonb(data->>'log')->>'message'  AS message,
+    logs.try_parse_jsonb(data->>'log')->>'hostname' AS hostname,
+    logs.try_parse_jsonb(data->>'log')->>'service'  AS service
+FROM logs.fluentbit
+WHERE data->>'log' IS NOT NULL
+  AND LEFT(TRIM(data->>'log'), 1) = '{'
+ORDER BY time DESC;
+
+-- View: error summary per container
+CREATE OR REPLACE VIEW logs.error_summary AS
+SELECT
+    REPLACE(data->>'container_name', '/', '') AS container_name,
+    logs.try_parse_jsonb(data->>'log')->>'level' AS log_level,
+    COUNT(*)                                      AS count,
+    MAX(time)                                     AS last_seen
+FROM logs.fluentbit
+WHERE data->>'log' IS NOT NULL
+  AND LEFT(TRIM(data->>'log'), 1) = '{'
+  AND logs.try_parse_jsonb(data->>'log')->>'level' IN ('ERROR', 'WARN', 'CRITICAL')
+GROUP BY 1, 2
+ORDER BY count DESC;
+
+-- Fungsi: cleanup log > 30 hari
+CREATE OR REPLACE FUNCTION logs.cleanup_old_logs()
+RETURNS INTEGER AS $$
+DECLARE
+    deleted_count INTEGER;
+BEGIN
+    DELETE FROM logs.fluentbit
+    WHERE time < NOW() - INTERVAL '30 days';
+    GET DIAGNOSTICS deleted_count = ROW_COUNT;
+    RETURN deleted_count;
+END;
+$$ LANGUAGE plpgsql;
 EOF
 ```
 
@@ -1067,7 +1146,7 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: "localhost:24224"
+        fluentd-address: "127.0.0.1:24224"
         fluentd-async: "true"
         tag: "docker.nginx"
     depends_on:
@@ -1089,7 +1168,7 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: "localhost:24224"
+        fluentd-address: "127.0.0.1:24224"
         fluentd-async: "true"
         tag: "docker.flask"
     depends_on:
@@ -1107,7 +1186,7 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: "localhost:24224"
+        fluentd-address: "127.0.0.1:24224"
         fluentd-async: "true"
         tag: "docker.generator"
     depends_on:
@@ -1138,6 +1217,20 @@ docker compose ps
 # Tunggu 30 detik agar metrics terkumpul
 sleep 30
 ```
+
+#### 6.1 Reset Volume Grafana (jika provisioning berubah)
+
+> **Catatan:** Jika Anda mengubah file provisioning (`datasources.yml`, dashboard JSON, atau `dashboards.yml`), Grafana tidak otomatis membaca ulang karena data provisioning sudah tersimpan di volume `grafana-data`. Untuk memaksa reload:
+
+```bash
+# Hentikan dan hapus volume Grafana (data dashboard custom akan hilang)
+docker compose down -v grafana
+
+# Jalankan ulang Grafana — provisioning akan di-load dari awal
+docker compose up -d grafana
+```
+
+> Perintah `docker compose down -v grafana` menghapus volume `grafana-data` yang berisi konfigurasi tersimpan. Setelah restart, Grafana akan membaca ulang semua file provisioning dari `/etc/grafana/provisioning/`.
 
 ---
 
@@ -1221,7 +1314,39 @@ curl -s http://localhost:5000/metrics | grep "flask_log_total_count"
 2. Pastikan ada 2 data source: **Prometheus** dan **PostgreSQL-Logs**
 3. Klik masing-masing → **Test** → harus "Data source is working"
 
-#### 8.3 Eksplorasi Dashboard yang Sudah di-Provision
+#### 8.3 Validasi API Datasource & Query ke PostgreSQL
+
+Validasi via API Grafana untuk memastikan datasource terdaftar dan query PostgreSQL berjalan:
+
+```bash
+# Daftar datasource yang terdaftar di Grafana
+echo "=== Datasource terdaftar ==="
+curl -s -u admin:admin123 http://localhost:3000/api/datasources \
+    | python3 -m json.tool
+
+# Cek detail datasource PostgreSQL (perhatikan uid dan type)
+echo "=== Detail PostgreSQL-Logs ==="
+curl -s -u admin:admin123 http://localhost:3000/api/datasources/uid/postgresql-logs \
+    | python3 -m json.tool
+
+# Test query ke PostgreSQL via Grafana API
+echo "=== Test query: SELECT COUNT(*) FROM logs.fluentbit ==="
+curl -s -X POST -u admin:admin123 \
+    -H "Content-Type: application/json" \
+    -d '{
+        "queries": [{
+            "refId": "A",
+            "datasourceId": 2,
+            "rawSql": "SELECT COUNT(*) AS total FROM logs.fluentbit;",
+            "format": "table"
+        }]
+    }' \
+    http://localhost:3000/api/ds/query | python3 -m json.tool
+```
+
+> **Catatan:** `datasourceId` bisa berbeda tergantung urutan registrasi. Gunakan API `/api/datasources` untuk mengetahui ID yang tepat, atau gunakan endpoint `/api/ds/query` dengan UID: `http://localhost:3000/api/ds/query?ds_uid=postgresql-logs`.
+
+#### 8.4 Eksplorasi Dashboard yang Sudah di-Provision
 
 1. Buka **Dashboards** (menu kiri)
 2. Buka folder **Lab PENS** → terdapat 3 dashboard:
@@ -1229,7 +1354,7 @@ curl -s http://localhost:5000/metrics | grep "flask_log_total_count"
    - **Container Metrics** — CPU/Memory/Network per container
    - **Log Analytics (PostgreSQL)** — log volume, distribusi level, recent errors
 
-#### 8.4 Buat Panel Custom Baru
+#### 8.5 Buat Panel Custom Baru
 
 1. Buka dashboard **Container Metrics** → klik **Edit** (ikon pensil kanan atas)
 2. Klik **Add → Visualization**
@@ -1242,7 +1367,7 @@ curl -s http://localhost:5000/metrics | grep "flask_log_total_count"
 6. Beri judul: **Flask HTTP Requests by Endpoint**
 7. Klik **Apply**
 
-#### 8.5 Buat Alert Rule di Grafana
+#### 8.6 Buat Alert Rule di Grafana
 
 1. Buka **Alerting → Alert rules** (menu kiri)
 2. Klik **New alert rule**
@@ -1317,6 +1442,8 @@ Ambil screenshot dashboard saat `stress` masih berjalan — ini menunjukkan kema
 - [ ] cAdvisor — `curl localhost:8081/metrics` menampilkan metrik container
 - [ ] Flask `/metrics` — menampilkan `flask_http_requests_total` dan custom metrics
 - [ ] Grafana login berhasil — `http://localhost:3000` dengan `admin/admin123`
+- [ ] `logs.fluentbit` — query `SELECT COUNT(*) FROM logs.fluentbit` menampilkan data > 0
+- [ ] `logs.structured_logs` — query `SELECT * FROM logs.structured_logs LIMIT 5` menampilkan log terstruktur
 - [ ] Data sources OK — Prometheus dan PostgreSQL-Logs keduanya **"Data source is working"**
 - [ ] Dashboard **Docker Host Overview** — gauge CPU/Memory/Disk menampilkan data
 - [ ] Dashboard **Container Metrics** — grafik CPU/Memory per container menampilkan data
@@ -1340,6 +1467,9 @@ Ambil screenshot dashboard saat `stress` masih berjalan — ini menunjukkan kema
 | PostgreSQL data source "connection refused" di Grafana | Hostname salah (jangan `localhost`, pakai `postgres-db`) | Edit data source, Host = `postgres-db:5432` |
 | Alert tidak terpicu saat CPU tinggi | Threshold terlalu tinggi atau evaluation period terlalu panjang | Turunkan threshold atau perpendek "For" duration |
 | Grafana "plugin not found" untuk pie chart | Versi Grafana terlalu lama | Gunakan `grafana/grafana:latest` (v10+) yang include pie chart |
+| Dashboard Log Analytics kosong — panel tidak menampilkan data | Dashboard masih query `logs.container_logs` (tabel tidak ada di Modul 5) | Update rawSql semua panel ke `logs.fluentbit` atau `logs.structured_logs` sesuai konteks |
+| Flask `/metrics` atau `/api/logs/stats` error 500 | Query mengacu ke tabel `logs.container_logs` yang sudah tidak ada | Ganti query menjadi `SELECT COUNT(*) FROM logs.fluentbit` dan distribusi level dari `logs.structured_logs` |
+| Fluent Bit log: `relation "logs.container_logs" does not exist` | Output Fluent Bit masih mengacu ke tabel `container_logs` atau schema lama | Ubah `Table container_logs` menjadi `Table fluentbit` dan pastikan init SQL berisi schema Modul 5 |
 | `stress` command not found | Package belum terinstal di host | `sudo apt install -y stress` |
 
 ---
